@@ -24,6 +24,7 @@ interface ISearchResultsState {
   includePrerelease: boolean;
   packageType: string;
   targetFramework: string;
+  page: number;
   items: IPackage[];
 }
 
@@ -33,6 +34,8 @@ interface ISearchResponse {
 
 class SearchResults extends React.Component<ISearchResultsProps, ISearchResultsState> {
 
+  private static readonly searchTake = 20;
+
   private resultsController?: AbortController;
 
   constructor(props: ISearchResultsProps) {
@@ -40,6 +43,7 @@ class SearchResults extends React.Component<ISearchResultsProps, ISearchResultsS
 
     this.state = {
       includePrerelease: true,
+      page: 1,
       items: [],
       packageType: 'any',
       targetFramework: 'any'
@@ -47,7 +51,7 @@ class SearchResults extends React.Component<ISearchResultsProps, ISearchResultsS
   }
 
   public componentDidMount() {
-    this._loadItems(
+    this.loadItems(
       this.props.input,
       this.state.includePrerelease,
       this.state.packageType,
@@ -65,7 +69,7 @@ class SearchResults extends React.Component<ISearchResultsProps, ISearchResultsS
       return;
     }
 
-    this._loadItems(
+    this.loadItems(
       props.input,
       this.state.includePrerelease,
       this.state.packageType,
@@ -198,25 +202,93 @@ class SearchResults extends React.Component<ISearchResultsProps, ISearchResultsS
             </div>
           </div>
         ))}
+
+        {this.state.items.length === this.state.page * SearchResults.searchTake &&
+          <div className="row text-center">
+            <div className="col-sm-12">
+              <h3>
+                <button type="button" onClick={this.loadMore} className="link-button">
+                  <span>Load more...</span>
+                </button>
+              </h3>
+            </div>
+          </div>
+        }
+
       </div>
     );
   }
 
-  private _loadItems(query: string, includePrerelease: boolean, packageType: string, targetFramework: string): void {
+  private loadItems(
+      query: string,
+      includePrerelease: boolean,
+      packageType: string,
+      targetFramework: string): void {
+    const url = this.buildUrl(
+      query,
+      0,
+      includePrerelease,
+      packageType,
+      targetFramework);
+
+      this.fetchSearchResults(
+        url,
+        this.resetItems,
+        this.setItems);
+  }
+
+  private loadMoreItems(): void {
+    const url = this.buildUrl(
+      this.props.input,
+      SearchResults.searchTake * this.state.page,
+      this.state.includePrerelease,
+      this.state.packageType,
+      this.state.targetFramework);
+
+      this.fetchSearchResults(
+        url,
+        () => {},
+        this.addPage);
+  }
+
+  private resetItems = () =>
+    this.setState({
+      page: 1,
+      items: [],
+      includePrerelease: this.state.includePrerelease,
+      packageType: this.state.packageType,
+      targetFramework: this.state.targetFramework,
+    });
+
+  private setItems = (results: ISearchResponse) =>
+    this.setState({
+      page: 1,
+      items: results.data,
+      includePrerelease: this.state.includePrerelease,
+      packageType: this.state.packageType,
+      targetFramework: this.state.targetFramework,
+    });
+
+  private addPage = (results: ISearchResponse) =>
+    this.setState({
+      page: this.state.page + 1,
+      items: this.state.items.concat(results.data),
+      includePrerelease: this.state.includePrerelease,
+      packageType: this.state.packageType,
+      targetFramework: this.state.targetFramework,
+    });
+
+  private fetchSearchResults(
+      url: string,
+      onStart: () => void,
+      onResults: (results: ISearchResponse) => void): void {
     if (this.resultsController) {
       this.resultsController.abort();
     }
 
     this.resultsController = new AbortController();
 
-    this.setState({
-      includePrerelease,
-      items: [],
-      packageType,
-      targetFramework,
-    });
-
-    const url = this.buildUrl(query, includePrerelease, packageType, targetFramework);
+    onStart();
 
     fetch(url, {signal: this.resultsController.signal}).then(response => {
       return response.ok
@@ -229,11 +301,7 @@ class SearchResults extends React.Component<ISearchResultsProps, ISearchResultsS
 
       const results = resultsJson as ISearchResponse;
 
-      this.setState({
-        includePrerelease,
-        items: results.data,
-        targetFramework,
-      });
+      onResults(results);
     })
     .catch((e) => {
       var ex = e as DOMException;
@@ -243,13 +311,23 @@ class SearchResults extends React.Component<ISearchResultsProps, ISearchResultsS
     });
   }
 
-  private buildUrl(query: string, includePrerelease: boolean, packageType?: string, targetFramework?: string) {
+  private buildUrl(
+      query: string,
+      skip: number,
+      includePrerelease: boolean,
+      packageType?: string,
+      targetFramework?: string) {
     const parameters: { [parameter: string]: string } = {
-      semVerLevel: "2.0.0"
+      semVerLevel: "2.0.0",
+      take: SearchResults.searchTake.toString()
     };
 
     if (query && query.length !== 0) {
       parameters.q = query;
+    }
+
+    if (skip !== 0) {
+      parameters.skip = skip.toString();
     }
 
     if (includePrerelease) {
@@ -276,7 +354,7 @@ class SearchResults extends React.Component<ISearchResultsProps, ISearchResultsS
   }
 
   private onChangePackageType = (e: React.FormEvent<HTMLDivElement>, option?: IDropdownOption) : void => {
-    this._loadItems(
+    this.loadItems(
       this.props.input,
       this.state.includePrerelease,
       (option) ? option.key.toString() : 'any',
@@ -284,7 +362,7 @@ class SearchResults extends React.Component<ISearchResultsProps, ISearchResultsS
   }
 
   private onChangeFramework = (e: React.FormEvent<HTMLDivElement>, option?: IDropdownOption) : void => {
-    this._loadItems(
+    this.loadItems(
       this.props.input,
       this.state.includePrerelease,
       this.state.packageType,
@@ -292,12 +370,14 @@ class SearchResults extends React.Component<ISearchResultsProps, ISearchResultsS
   }
 
   private onChangePrerelease = () : void => {
-    this._loadItems(
+    this.loadItems(
       this.props.input,
       !this.state.includePrerelease,
       this.state.packageType,
       this.state.targetFramework);
   }
+
+  private loadMore = () : void => this.loadMoreItems();
 }
 
 export default SearchResults;
