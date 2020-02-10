@@ -1,15 +1,13 @@
 using System;
-using System.Threading;
 using System.Threading.Tasks;
 using BaGet.Core;
 using BaGet.Extensions;
+using BaGet.Hosting;
 using McMaster.Extensions.CommandLineUtils;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 
 namespace BaGet
 {
@@ -73,14 +71,11 @@ namespace BaGet
                     }
                 });
 
-        public static IHostBuilder CreateHostBuilder(string[] args)
-        {
+        public static IHostBuilder CreateHostBuilder(string[] args) =>
             // TODO: Merge 'CreateWebHostBuilder' and 'CreateHostBuilder'
             // See: https://docs.microsoft.com/en-us/aspnet/core/migration/22-to-30?view=aspnetcore-3.1&tabs=visual-studio#configuration
-            return new HostBuilder()
-                .ConfigureBaGetConfiguration(args)
-                .ConfigureBaGetServices()
-                .ConfigureBaGetLogging();
-        }
+            Host.CreateDefaultBuilder(args)
+                .ConfigureBaGetServices();
+
     }
 }

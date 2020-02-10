@@ -1,8 +1,7 @@
 using System;
-using BaGet.Configuration;
 using BaGet.Core;
-using BaGet.Core.Server.Extensions;
 using BaGet.Extensions;
+using BaGet.Hosting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.SpaServices.ReactDevelopmentServer;
